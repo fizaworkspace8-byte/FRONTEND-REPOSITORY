@@ -6,6 +6,7 @@ import {
   ChevronUp,
   Download,
   Loader2,
+  Package,
   PackagePlus,
   Plus,
   Search,
@@ -13,7 +14,10 @@ import {
   X,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import DataTable from '../components/DataTable';
+import Badge from '../components/Badge';
 import { api } from '../lib/api';
+import { money } from '../lib/format';
 import { downloadFile } from '../lib/documents';
 
 /* ------------------------------------------------------------------ */
@@ -630,6 +634,7 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [colorFilter, setColorFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [showAdjust, setShowAdjust] = useState(false);
   const [expandedProductId, setExpandedProductId] = useState(null);
@@ -675,19 +680,37 @@ export default function ProductsPage() {
     loadData();
   }, [loadData]);
 
+  const availableColors = useMemo(() => {
+    const colorSet = new Set();
+    products.forEach((p) => {
+      (p.variants || []).forEach((v) => {
+        if (v.color) colorSet.add(v.color);
+      });
+    });
+    return Array.from(colorSet).sort();
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
-    if (!search.trim()) return products;
-    const q = search.toLowerCase();
-    return products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.variants.some(
-          (v) =>
-            v.sku.toLowerCase().includes(q) ||
-            (v.barcode || '').toLowerCase().includes(q)
-        )
-    );
-  }, [products, search]);
+    let list = products;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.variants.some(
+            (v) =>
+              v.sku.toLowerCase().includes(q) ||
+              (v.barcode || '').toLowerCase().includes(q)
+          )
+      );
+    }
+    if (colorFilter) {
+      list = list.filter((p) =>
+        (p.variants || []).some((v) => v.color === colorFilter)
+      );
+    }
+    return list;
+  }, [products, search, colorFilter]);
 
   const lowStockCount = products.reduce(
     (acc, p) =>
@@ -696,9 +719,97 @@ export default function ProductsPage() {
     0
   );
 
+  const columns = [
+    {
+      key: 'name',
+      label: 'Product',
+      sortable: true,
+      render: (p) => (
+        <div>
+          <div className="font-medium text-slate-900 dark:text-white">{p.name}</div>
+          <div className="text-xs text-slate-500">{p.brand_name || 'No brand'}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'category_name',
+      label: 'Category',
+      sortable: true,
+      render: (p) => (
+        <span className="text-slate-600 dark:text-slate-300">{p.category_name || '—'}</span>
+      ),
+    },
+    {
+      key: 'variants_count',
+      label: 'Variants',
+      align: 'right',
+      render: (p) => (
+        <span className="tabular-nums text-slate-600 dark:text-slate-300">{p.variants.length}</span>
+      ),
+    },
+    {
+      key: 'total_stock',
+      label: 'Total stock',
+      align: 'right',
+      render: (p) => {
+        const totalQty = p.variants.reduce(
+          (sum, v) => sum + Number(v.quantity_on_hand || 0),
+          0
+        );
+        const isLow = p.variants.some(
+          (v) => v.quantity_on_hand <= v.reorder_level
+        );
+        return (
+          <span
+            className={`tabular-nums font-medium ${
+              isLow
+                ? 'text-amber-600 dark:text-amber-400'
+                : 'text-slate-900 dark:text-white'
+            }`}
+          >
+            {totalQty}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'is_active',
+      label: 'Status',
+      sortable: true,
+      render: (p) => (
+        <Badge tone={p.is_active ? 'emerald' : 'slate'}>
+          {p.is_active ? 'Active' : 'Inactive'}
+        </Badge>
+      ),
+    },
+    {
+      key: '_expand',
+      label: '',
+      align: 'right',
+      render: (p) => {
+        const isExpanded = expandedProductId === p.id;
+        return (
+          <button
+            type="button"
+            onClick={() => setExpandedProductId(isExpanded ? null : p.id)}
+            className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10"
+            aria-label="Toggle variants"
+          >
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </button>
+        );
+      },
+    },
+  ];
+
   return (
     <div className="animate-fade-up">
       <PageHeader
+        icon={Package}
         title="Products"
         description="Catalog, variants, stock levels, and controlled stock adjustments."
         actions={
@@ -717,6 +828,7 @@ export default function ProductsPage() {
               Export CSV
             </button>
             <button
+              type="button"
               onClick={() => setShowAdjust(true)}
               className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600"
             >
@@ -724,8 +836,9 @@ export default function ProductsPage() {
               Adjust stock
             </button>
             <button
+              type="button"
               onClick={() => setShowCreate(true)}
-              className="inline-flex h-9 items-center gap-2 rounded-xl bg-ink-950 px-3 text-sm font-semibold text-white transition hover:bg-ink-800 dark:bg-white dark:text-ink-950 dark:hover:bg-slate-200"
+              className="inline-flex h-9 items-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-3 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:-translate-y-px dark:from-brand-600 dark:to-brand-700"
             >
               <PackagePlus className="h-4 w-4" />
               New product
@@ -734,105 +847,69 @@ export default function ProductsPage() {
         }
       />
 
-      <div className="card mb-4 p-4 hover-accent-blue">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, SKU, or barcode…"
-            className="h-10 w-full rounded-xl border border-slate-300 bg-white/90 pl-10 pr-4 text-sm font-medium outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-700 dark:bg-slate-800/90 dark:text-white"
-          />
-        </div>
-      </div>
-
       {error && (
         <p className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 border border-rose-200 dark:bg-rose-950/30 dark:border-rose-800/50 dark:text-rose-300">
           {error}
         </p>
       )}
 
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200/80 text-sm dark:divide-slate-800/80">
-            <thead className="bg-slate-100/60 dark:bg-slate-800/60">
-              <tr>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">Product</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">Category</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">Variants</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">Total stock</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">Status</th>
-                <th className="px-4 py-3.5" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center">
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" />
-                  </td>
-                </tr>
-              ) : filteredProducts.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
-                    No products found.
-                  </td>
-                </tr>
-              ) : (
-                filteredProducts.map((product) => {
-                  const totalQty = product.variants.reduce(
-                    (sum, v) => sum + Number(v.quantity_on_hand || 0),
-                    0
-                  );
-                  const isExpanded = expandedProductId === product.id;
-                  return (
-                    <tr key={product.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/60">
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-slate-900 dark:text-white">
-                          {product.name}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {product.brand_name || 'No brand'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                        {product.category_name || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                        {product.variants.length}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                        {totalQty}
-                      </td>
-                      <td className="px-4 py-3">
-                        {product.is_active ? (
-                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-400/10 dark:text-emerald-300">
-                            Active
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-900 dark:bg-slate-400/10 dark:text-slate-300">
-                            Inactive
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => setExpandedProductId(isExpanded ? null : product.id)}
-                          className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10"
-                          aria-label="Toggle variants"
-                        >
-                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <DataTable
+        columns={columns}
+        rows={filteredProducts}
+        loading={loading}
+        empty={{
+          title: 'No products found.',
+          description: 'Try adjusting your search or create a new product.',
+        }}
+        onRowClick={(row) =>
+          setExpandedProductId(expandedProductId === row.id ? null : row.id)
+        }
+        toolbar={
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name, SKU, or barcode…"
+                className="h-10 w-full rounded-xl border border-slate-300 bg-white/90 pl-10 pr-4 text-sm font-medium outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-700 dark:bg-slate-800/90 dark:text-white"
+              />
+            </div>
+            {availableColors.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setColorFilter('')}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                    !colorFilter
+                      ? 'bg-ink-950 text-white dark:bg-white dark:text-ink-950'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  All colors
+                </button>
+                {availableColors.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() =>
+                      setColorFilter(colorFilter === color ? '' : color)
+                    }
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                      colorFilter === color
+                        ? 'bg-ink-950 text-white dark:bg-white dark:text-ink-950'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {color}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        }
+      />
 
       {expandedProductId && (
         <div className="card mt-4 p-4">
@@ -856,10 +933,10 @@ export default function ProductsPage() {
                         Qty: {v.quantity_on_hand}
                       </span>
                       <span className="text-sm text-slate-600 dark:text-slate-300">
-                        Avg cost: {v.average_cost}
+                        Avg cost: {money(v.average_cost)}
                       </span>
                       <span className="text-sm text-slate-600 dark:text-slate-300">
-                        Sale: {v.sale_price}
+                        Sale: {money(v.sale_price)}
                       </span>
                       {v.quantity_on_hand <= v.reorder_level &&
                         Number(v.quantity_on_hand) > 0 && (

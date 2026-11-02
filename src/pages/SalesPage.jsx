@@ -10,7 +10,11 @@ import {
   X,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import DataTable from '../components/DataTable';
+import { ColorSwatch } from '../components/ColorSwatch';
+import Badge from '../components/Badge';
 import { api } from '../lib/api';
+import { money, dateTime } from '../lib/format';
 import { openPdf } from '../lib/documents';
 
 function Modal({ open, onClose, children, maxWidth = 'max-w-2xl' }) {
@@ -24,20 +28,6 @@ function Modal({ open, onClose, children, maxWidth = 'max-w-2xl' }) {
     document.body
   );
 }
-
-const dateTime = (v) =>
-  new Date(v).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-const money = (v) =>
-  new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(v || 0));
 
 export default function SalesPage() {
   const [products, setProducts] = useState([]);
@@ -69,7 +59,7 @@ export default function SalesPage() {
     setError('');
     try {
       const [productsRes, locationsRes, customersRes] = await Promise.all([
-        api.get('/products'),
+        api.get('/products?limit=500&active=true&sortBy=name&sortDir=asc'),
         api.get('/inventory/locations'),
         api.get('/customers'),
       ]);
@@ -250,6 +240,7 @@ export default function SalesPage() {
   return (
     <div className="animate-fade-up">
       <PageHeader
+        icon={ShoppingCart}
         title="Sales / POS"
         description="Fast checkout with product search, cart, and payment recording."
       />
@@ -285,7 +276,7 @@ export default function SalesPage() {
                     <div className="mb-2 flex items-start justify-between">
                       <div>
                         <p className="font-semibold text-slate-900 dark:text-white">{product.name}</p>
-                        <p className="text-xs text-slate-500">{product.brand_name || 'No brand'}</p>
+                        <Badge tone="slate">{product.brand_name || 'No brand'}</Badge>
                       </div>
                     </div>
                     <div className="space-y-1">
@@ -296,7 +287,10 @@ export default function SalesPage() {
                         >
                           <div>
                             <p className="text-sm font-medium">{variant.sku}</p>
-                            <p className="text-xs text-slate-500">Qty: {variant.quantity_on_hand} | Sale: ${Number(variant.sale_price || 0).toFixed(2)}</p>
+                            <p className="text-xs text-slate-500">
+                              <ColorSwatch color={variant.color || ''} hex={variant.color_hex || ''} size="sm" />
+                              {variant.color && <span className="ml-1">{variant.color}</span>} | Qty: {variant.quantity_on_hand} | Sale: {money(variant.sale_price || 0)}
+                            </p>
                           </div>
                           <button
                             onClick={() => addToCart(product, variant)}
@@ -425,7 +419,7 @@ export default function SalesPage() {
           <button
             onClick={handleSubmit}
             disabled={submitting || cart.length === 0}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink-950 text-sm font-semibold text-white transition hover:bg-ink-800 disabled:opacity-60 dark:bg-white dark:text-ink-950 dark:hover:bg-slate-200"
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:-translate-y-px disabled:opacity-60 dark:from-brand-600 dark:to-brand-700"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
             Complete sale
@@ -434,109 +428,113 @@ export default function SalesPage() {
       </div>
 
       {/* Recent sales with document access */}
-      <div className="card mt-6 overflow-hidden">
-        <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Recent sales</h3>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Latest 10 sales — open a professional invoice or a printable receipt for any of them.
-          </p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
-            <thead className="bg-slate-50 dark:bg-slate-900">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 dark:text-slate-400">Sale #</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 dark:text-slate-400">Date</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 dark:text-slate-400">Customer</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 dark:text-slate-400">Status</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 dark:text-slate-400">Payment</th>
-                <th className="px-4 py-3 text-right font-medium text-slate-500 dark:text-slate-400">Total</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {recentLoading ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center">
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" />
-                  </td>
-                </tr>
-              ) : recentSales.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-slate-500">No sales yet.</td>
-                </tr>
-              ) : (
-                recentSales.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/60">
-                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">#{s.sale_number}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{dateTime(s.sale_date)}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                      {s.customer_name || (s.customer_id ? 'Customer' : 'Walk-in')}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          s.status === 'cancelled'
-                            ? 'bg-rose-100 text-rose-900 dark:bg-rose-400/10 dark:text-rose-300'
-                            : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-400/10 dark:text-emerald-300'
-                        }`}
-                      >
-                        {s.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          s.payment_status === 'paid'
-                            ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-400/10 dark:text-emerald-300'
-                            : s.payment_status === 'partial'
-                            ? 'bg-amber-100 text-amber-900 dark:bg-amber-400/10 dark:text-amber-300'
-                            : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                        }`}
-                      >
-                        {s.payment_status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-slate-900 dark:text-white">{money(s.total)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenDoc('invoice', s.id)}
-                          disabled={Boolean(docBusy)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                          title="Open A4 invoice PDF"
-                        >
-                          {docBusy === `invoice-${s.id}` ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <FileText className="h-3 w-3" />
-                          )}
-                          Invoice
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenDoc('receipt', s.id)}
-                          disabled={Boolean(docBusy)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-brand-500 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-60"
-                          title="Open thermal-style receipt PDF"
-                        >
-                          {docBusy === `receipt-${s.id}` ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Receipt className="h-3 w-3" />
-                          )}
-                          Receipt
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <DataTable
+        columns={[
+          {
+            key: 'sale_number',
+            label: 'Sale #',
+            sortable: true,
+            render: (s) => <span className="font-medium text-slate-900 dark:text-white">#{s.sale_number}</span>,
+          },
+          {
+            key: 'sale_date',
+            label: 'Date',
+            sortable: true,
+            render: (s) => <span className="text-slate-600 dark:text-slate-300">{dateTime(s.sale_date)}</span>,
+          },
+          {
+            key: 'customer',
+            label: 'Customer',
+            render: (s) => (
+              <span className="text-slate-600 dark:text-slate-300">
+                {s.customer_name || (s.customer_id ? 'Customer' : 'Walk-in')}
+              </span>
+            ),
+          },
+          {
+            key: 'status',
+            label: 'Status',
+            render: (s) => (
+              <Badge
+                tone={
+                  s.status === 'cancelled' ? 'rose' : s.status === 'pending' ? 'amber' : 'emerald'
+                }
+              >
+                {s.status}
+              </Badge>
+            ),
+          },
+          {
+            key: 'payment_status',
+            label: 'Payment',
+            render: (s) => (
+              <Badge
+                tone={
+                  s.payment_status === 'paid'
+                    ? 'emerald'
+                    : s.payment_status === 'partial'
+                    ? 'amber'
+                    : 'slate'
+                }
+              >
+                {s.payment_status}
+              </Badge>
+            ),
+          },
+          {
+            key: 'total',
+            label: 'Total',
+            align: 'right',
+            className: 'tabular-nums',
+            sortable: true,
+            render: (s) => <span className="font-medium text-slate-900 dark:text-white">{money(s.total)}</span>,
+          },
+          {
+            key: 'actions',
+            label: '',
+            headerClassName: 'text-right',
+            render: (s) => (
+              <div className="flex items-center justify-end gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleOpenDoc('invoice', s.id)}
+                  disabled={Boolean(docBusy)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  title="Open A4 invoice PDF"
+                >
+                  {docBusy === `invoice-${s.id}` ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <FileText className="h-3 w-3" />
+                  )}
+                  Invoice
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenDoc('receipt', s.id)}
+                  disabled={Boolean(docBusy)}
+                  className="inline-flex items-center gap-1 rounded-lg bg-brand-500 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-60"
+                  title="Open thermal-style receipt PDF"
+                >
+                  {docBusy === `receipt-${s.id}` ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Receipt className="h-3 w-3" />
+                  )}
+                  Receipt
+                </button>
+              </div>
+            ),
+          },
+        ]}
+        rows={recentLoading ? [] : recentSales}
+        loading={recentLoading}
+        empty="No sales yet."
+        sort={{ key: 'sale_date', dir: 'desc' }}
+        onSortChange={(key, dir) => {
+          // Client-side sort handled by DataTable; recentSales is already sorted by backend
+        }}
+      />
 
       {/* Customer creation modal */}
       <Modal open={showCustomerModal} onClose={() => setShowCustomerModal(false)} maxWidth="max-w-md">
@@ -577,9 +575,9 @@ export default function SalesPage() {
         </div>
         <div className="space-y-2 text-sm">
           <p><span className="font-medium">Status:</span> {saleResult?.status}</p>
-          <p><span className="font-medium">Total:</span> ${Number(saleResult?.total).toFixed(2)}</p>
-          <p><span className="font-medium">Amount paid:</span> ${Number(saleResult?.amount_paid).toFixed(2)}</p>
-          <p><span className="font-medium">Balance due:</span> ${Number(saleResult?.balance_due).toFixed(2)}</p>
+          <p><span className="font-medium">Total:</span> {money(saleResult?.total)}</p>
+          <p><span className="font-medium">Amount paid:</span> {money(saleResult?.amount_paid)}</p>
+          <p><span className="font-medium">Balance due:</span> {money(saleResult?.balance_due)}</p>
         </div>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <button

@@ -26,7 +26,7 @@ export default function LoginPage() {
         email,
         password,
       });
-      login(data.token, data.user);
+      login(data.token, data.user, data.refreshToken || null);
       navigate('/', { replace: true });
     } catch (err) {
       setError(err.message || 'Login failed.');

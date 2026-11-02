@@ -13,7 +13,11 @@ import {
   X,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import DataTable from '../components/DataTable';
+import Badge from '../components/Badge';
+import { ColorSwatch } from '../components/ColorSwatch';
 import { api } from '../lib/api';
+import { money } from '../lib/format';
 import { useAuth } from '../auth/AuthContext';
 
 function Modal({ open, onClose, children, maxWidth = 'max-w-2xl' }) {
@@ -179,7 +183,7 @@ function CreatePoModal({ open, onClose, onCreated, suppliers, products }) {
               >
                 <option value="">Select variant…</option>
                 {productVariants.map((v) => (
-                  <option key={v.id} value={v.id}>{v.sku} - {v.name || 'default'}</option>
+                  <option key={v.id} value={v.id}>{v.sku} — {v.name || 'default'} · {v.color || 'n/a'}</option>
                 ))}
               </select>
             </div>
@@ -468,7 +472,7 @@ export default function PurchasesPage() {
       const [ordersRes, suppliersRes, productsRes, locationsRes] = await Promise.all([
         api.get('/purchases/orders'),
         api.get('/suppliers'),
-        api.get('/products'),
+        api.get('/products?limit=500&active=true&sortBy=name&sortDir=asc'),
         api.get('/inventory/locations'),
       ]);
       setPurchaseOrders(ordersRes.purchaseOrders);
@@ -540,6 +544,7 @@ export default function PurchasesPage() {
   return (
     <div className="animate-fade-up">
       <PageHeader
+        icon={ShoppingBasket}
         title="Purchases"
         description="Purchase orders, goods receipts, supplier bills and returns."
         actions={
@@ -556,7 +561,7 @@ export default function PurchasesPage() {
             ) : null}
             <button
               onClick={() => setShowCreate(true)}
-              className="inline-flex h-9 items-center gap-2 rounded-xl bg-ink-950 px-3 text-sm font-semibold text-white transition hover:bg-ink-800 dark:bg-white dark:text-ink-950 dark:hover:bg-slate-200"
+              className="inline-flex h-9 items-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-3 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:-translate-y-px disabled:opacity-60 dark:from-brand-600 dark:to-brand-700"
             >
               <ShoppingBasket className="h-4 w-4" />
               New PO
@@ -567,89 +572,111 @@ export default function PurchasesPage() {
 
       {error && <p className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 border border-rose-200 dark:bg-rose-950/30 dark:border-rose-800/50 dark:text-rose-300">{error}</p>}
 
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200/80 text-sm dark:divide-slate-800/80">
-            <thead className="bg-slate-100/60 dark:bg-slate-800/60">
-              <tr>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">PO #</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">Supplier</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">Status</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">Ordered</th>
-                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">Received</th>
-                <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">Total</th>
-                <th className="px-4 py-3.5"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {loading ? (
-                <tr><td colSpan={7} className="px-4 py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" /></td></tr>
-              ) : purchaseOrders.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-500">No purchase orders yet.</td></tr>
-              ) : purchaseOrders.map((po) => (
-                <tr key={po.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-900 dark:text-white">PO-{po.po_number}</span>
-                      {po.source === 'auto_reorder' ? (
-                        <span
-                          className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-800 dark:bg-brand-400/10 dark:text-brand-300"
-                          title="Auto-generated by the low-stock reorder job"
-                        >
-                          <Sparkles className="h-3 w-3" /> Auto
-                        </span>
-                      ) : null}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{po.supplier_name}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGES[po.status] || STATUS_BADGES.draft}`}>
-                      {po.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{po.total_ordered}</td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{po.total_received}</td>
-                  <td className="px-4 py-3 text-right font-medium text-slate-900 dark:text-white">${Number(po.total).toFixed(2)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1.5">
-                      {po.status === 'draft' && canApprove ? (
-                        <button
-                          onClick={() => handleApprove(po)}
-                          disabled={busyId === po.id}
-                          className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
-                          title="Approve this draft PO"
-                        >
-                          {busyId === po.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <BadgeCheck className="h-3 w-3" />}
-                          Approve
-                        </button>
-                      ) : null}
-                      {['draft', 'pending'].includes(po.status) && canApprove ? (
-                        <button
-                          onClick={() => handleCancel(po)}
-                          disabled={busyId === po.id}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-60 dark:border-slate-700 dark:text-rose-400 dark:hover:bg-rose-400/10"
-                          title="Cancel this PO (only if nothing received)"
-                        >
-                          <Ban className="h-3 w-3" />
-                          Cancel
-                        </button>
-                      ) : null}
-                      {po.status !== 'received' && po.status !== 'cancelled' ? (
-                        <button
-                          onClick={() => openReceiveModal(po)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-brand-500 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-600"
-                        >
-                          <Truck className="h-3 w-3" /> Receive
-                        </button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <DataTable
+        columns={[
+          {
+            key: 'po_number',
+            label: 'PO #',
+            sortable: true,
+            render: (po) => (
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-slate-900 dark:text-white">PO-{po.po_number}</span>
+                {po.source === 'auto_reorder' ? (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-800 dark:bg-brand-400/10 dark:text-brand-300"
+                    title="Auto-generated by the low-stock reorder job"
+                  >
+                    <Sparkles className="h-3 w-3" /> Auto
+                  </span>
+                ) : null}
+              </div>
+            ),
+          },
+          {
+            key: 'supplier_name',
+            label: 'Supplier',
+            render: (po) => <span className="text-slate-600 dark:text-slate-300">{po.supplier_name}</span>,
+          },
+          {
+            key: 'status',
+            label: 'Status',
+            render: (po) => (
+              <Badge
+                tone={
+                  po.status === 'draft' ? 'slate'
+                    : po.status === 'pending' ? 'blue'
+                    : po.status === 'received' ? 'emerald'
+                    : po.status === 'cancelled' ? 'rose' : 'slate'
+                }
+              >
+                {po.status.replace('_', ' ')}
+              </Badge>
+            ),
+          },
+          {
+            key: 'total_ordered',
+            label: 'Ordered',
+            render: (po) => <span className="text-slate-600 dark:text-slate-300">{po.total_ordered}</span>,
+          },
+          {
+            key: 'total_received',
+            label: 'Received',
+            render: (po) => <span className="text-slate-600 dark:text-slate-300">{po.total_received}</span>,
+          },
+          {
+            key: 'total',
+            label: 'Total',
+            align: 'right',
+            className: 'tabular-nums',
+            sortable: true,
+            render: (po) => <span className="font-medium text-slate-900 dark:text-white">{money(po.total)}</span>,
+          },
+          {
+            key: 'actions',
+            label: '',
+            headerClassName: 'text-right',
+            render: (po) => (
+              <div className="flex items-center justify-end gap-1.5">
+                {po.status === 'draft' && canApprove ? (
+                  <button
+                    onClick={() => handleApprove(po)}
+                    disabled={busyId === po.id}
+                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                    title="Approve this draft PO"
+                  >
+                    {busyId === po.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <BadgeCheck className="h-3 w-3" />}
+                    Approve
+                  </button>
+                ) : null}
+                {['draft', 'pending'].includes(po.status) && canApprove ? (
+                  <button
+                    onClick={() => handleCancel(po)}
+                    disabled={busyId === po.id}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-60 dark:border-slate-700 dark:text-rose-400 dark:hover:bg-rose-400/10"
+                    title="Cancel this PO (only if nothing received)"
+                  >
+                    <Ban className="h-3 w-3" />
+                    Cancel
+                  </button>
+                ) : null}
+                {po.status !== 'received' && po.status !== 'cancelled' ? (
+                  <button
+                    onClick={() => openReceiveModal(po)}
+                    className="inline-flex items-center gap-1 rounded-lg bg-brand-500 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-600"
+                  >
+                    <Truck className="h-3 w-3" /> Receive
+                  </button>
+                ) : null}
+              </div>
+            ),
+          },
+        ]}
+        rows={loading ? [] : purchaseOrders}
+        loading={loading}
+        empty="No purchase orders yet."
+        sort={{ key: 'po_number', dir: 'asc' }}
+        onSortChange={() => {}}
+/>
 
       <CreatePoModal
         open={showCreate}

@@ -68,7 +68,7 @@ export default function Sidebar({ open, onClose }) {
               clsx(
                 'sidebar-link',
                 isActive
-                  ? 'bg-brand-400/10 text-brand-300'
+                  ? 'bg-gradient-to-r from-brand-500/20 to-accent-500/10 text-brand-300 shadow-sm shadow-brand-500/10'
                   : 'text-slate-400 hover:bg-white/5 hover:text-white'
               )
             }

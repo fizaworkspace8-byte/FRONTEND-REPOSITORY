@@ -352,7 +352,7 @@ export default function DataPage() {
                 type="button"
                 onClick={handleImport}
                 disabled={!dryResult || importing}
-                className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:opacity-50"
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:-translate-y-px disabled:opacity-50 dark:from-brand-600 dark:to-brand-700"
               >
                 {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 Import {dryResult ? `${dryResult.rowsReceived} row(s)` : ''}

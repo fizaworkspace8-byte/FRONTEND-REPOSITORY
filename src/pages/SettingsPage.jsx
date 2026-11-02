@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Building2,
+import { Building2,
   ShieldCheck,
   Info,
   Save,
@@ -17,8 +16,7 @@ import {
   Copy,
   Check,
   RefreshCw,
-  Tag,
-} from 'lucide-react';
+  Tag, Settings } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import RoleBadge from '../components/RoleBadge';
 import { api, API_BASE_URL } from '../lib/api';
@@ -229,6 +227,7 @@ export default function SettingsPage() {
   return (
     <div className="animate-fade-up space-y-6">
       <PageHeader
+        icon={Settings}
         title="Business Settings"
         description="Manage business profile, taxes, currency, timezone, and review system roles."
       />
@@ -464,7 +463,7 @@ export default function SettingsPage() {
                 <button
                   type="submit"
                   disabled={saving || !businessName.trim()}
-                  className="inline-flex h-11 items-center gap-2 rounded-xl bg-brand-500 px-6 text-sm font-semibold text-slate-950 transition hover:bg-brand-400 disabled:opacity-50 dark:bg-brand-400 dark:hover:bg-brand-300"
+                  className="inline-flex h-11 items-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:-translate-y-px disabled:opacity-50 dark:from-brand-600 dark:to-brand-700"
                 >
                   {saving ? (
                     <>
@@ -635,7 +634,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="flex justify-between pt-1">
                     <span className="text-slate-500 dark:text-slate-400">Auth Token Transport:</span>
-                    <span className="font-medium text-slate-900 dark:text-white">Bearer JWT (localStorage)</span>
+                    <span className="font-medium text-slate-900 dark:text-white">Bearer JWT access token + rotating refresh token (localStorage)</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500 dark:text-slate-400">Isolation Layer:</span>

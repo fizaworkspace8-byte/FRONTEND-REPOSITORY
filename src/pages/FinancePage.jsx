@@ -17,21 +17,11 @@ import {
   X,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import DataTable from '../components/DataTable';
+import Badge from '../components/Badge';
 import { api } from '../lib/api';
 import { downloadFile } from '../lib/documents';
-
-const money = (v) =>
-  new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(v || 0));
-
-const dateFmt = (d) =>
-  new Date(d).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+import { money, dateOnly } from '../lib/format';
 
 const SOURCE_TYPE_LABELS = {
   sale: 'Sale',
@@ -381,7 +371,7 @@ function JournalDetailModal({ entryId, onClose, onReversed }) {
           </h2>
           {data ? (
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              {dateFmt(data.entry.entry_date)} · {SOURCE_TYPE_LABELS[data.entry.source_type] || data.entry.source_type}
+              {dateOnly(data.entry.entry_date)} · {SOURCE_TYPE_LABELS[data.entry.source_type] || data.entry.source_type}
               {data.entry.reversal_of_number ? ` · reverses #${data.entry.reversal_of_number}` : ''}
               {data.entry.reversed_by_number ? ` · reversed by #${data.entry.reversed_by_number}` : ''}
             </p>
@@ -520,59 +510,76 @@ function JournalTab() {
 
       <ErrorBanner message={error} />
 
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
-            <thead className="bg-slate-50 dark:bg-slate-900">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 dark:text-slate-400">#</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 dark:text-slate-400">Date</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 dark:text-slate-400">Memo</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 dark:text-slate-400">Source</th>
-                <th className="px-4 py-3 text-right font-medium text-slate-500 dark:text-slate-400">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center">
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" />
-                  </td>
-                </tr>
-              ) : entries.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
-                    No journal entries yet.
-                  </td>
-                </tr>
+      <DataTable
+        columns={[
+          { key: 'entry_number', label: '#', sortable: true },
+          {
+            key: 'entry_date',
+            label: 'Date',
+            sortable: true,
+            render: (e) => dateOnly(e.entry_date),
+          },
+          {
+            key: 'source_type',
+            label: 'Source',
+            sortable: true,
+            render: (e) => SOURCE_TYPE_LABELS[e.source_type] || e.source_type,
+          },
+          { key: 'memo', label: 'Memo', render: (e) => e.memo || '—' },
+          {
+            key: 'line_count',
+            label: 'Lines',
+            align: 'right',
+            className: 'tabular-nums',
+            sortable: true,
+            render: (e) => e.line_count,
+          },
+          {
+            key: 'total_debit',
+            label: 'Amount',
+            align: 'right',
+            className: 'tabular-nums',
+            sortable: true,
+            render: (e) => money(e.total_debit),
+          },
+          {
+            key: 'status',
+            label: 'Status',
+            render: (e) =>
+              e.reversed_by_number ? (
+                <Badge tone="slate">Reversed</Badge>
+              ) : e.reversal_of_number ? (
+                <Badge tone="amber">Reversal</Badge>
               ) : (
-                entries.map((e) => (
-                  <tr
-                    key={e.id}
-                    onClick={() => setDetailId(e.id)}
-                    className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/60"
-                  >
-                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{e.entry_number}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{dateFmt(e.entry_date)}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{e.memo || '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                        {SOURCE_TYPE_LABELS[e.source_type] || e.source_type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-slate-900 dark:text-white">
-                      {money(e.total_debit)}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                <Badge tone="emerald">Posted</Badge>
+              ),
+          },
+          {
+            key: 'actions',
+            label: '',
+            headerClassName: 'text-right',
+            render: (e) => (
+              <button
+                type="button"
+                onClick={() => setDetailId(e.id)}
+                className="text-xs font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400"
+              >
+                View
+              </button>
+            ),
+          },
+        ]}
+        rows={loading ? [] : entries}
+        loading={loading}
+        empty={{
+          title: 'No journal entries yet.',
+          description: 'Sales, purchases, and adjustments post here automatically.',
+        }}
+      />
 
       <div className="flex items-center justify-between">
         <button
+          type="button"
           onClick={() => setOffset(Math.max(0, offset - limit))}
           disabled={offset === 0 || loading}
           className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -580,6 +587,7 @@ function JournalTab() {
           Previous
         </button>
         <button
+          type="button"
           onClick={() => setOffset(offset + limit)}
           disabled={offset + limit >= total || loading}
           className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -592,463 +600,6 @@ function JournalTab() {
         entryId={detailId}
         onClose={() => setDetailId(null)}
         onReversed={load}
-      />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Expenses tab
-// ---------------------------------------------------------------------------
-
-function RecordExpenseModal({ open, onClose, onSaved, accounts }) {
-  const [accountId, setAccountId] = useState('');
-  const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState('cash');
-  const [expenseDate, setExpenseDate] = useState('');
-  const [reference, setReference] = useState('');
-  const [notes, setNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (open) {
-      setAccountId('');
-      setAmount('');
-      setMethod('cash');
-      setExpenseDate('');
-      setReference('');
-      setNotes('');
-      setError('');
-    }
-  }, [open]);
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError('');
-    try {
-      const body = {
-        accountId,
-        amount: Number(amount),
-        method,
-      };
-      if (expenseDate) body.expenseDate = expenseDate;
-      if (reference) body.reference = reference;
-      if (notes) body.notes = notes;
-      await api.post('/finance/expenses', body);
-      onSaved();
-      onClose();
-    } catch (err) {
-      setError(err.message || 'Failed to record expense.');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const inputCls =
-    'h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white';
-  const labelCls = 'mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300';
-
-  return (
-    <Modal open={open} onClose={onClose}>
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Record expense</h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Money paid out for running the business.
-          </p>
-        </div>
-        <button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10" aria-label="Close">
-          <X className="h-5 w-5" />
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className={labelCls}>Category *</label>
-          <select value={accountId} onChange={(e) => setAccountId(e.target.value)} required className={inputCls}>
-            <option value="">Select category…</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.code} — {a.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className={labelCls}>Amount *</label>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              required
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Paid by *</label>
-            <select value={method} onChange={(e) => setMethod(e.target.value)} className={inputCls}>
-              <option value="cash">Cash</option>
-              <option value="bank_transfer">Bank transfer</option>
-              <option value="card">Card</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className={labelCls}>Date</label>
-            <input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Reference</label>
-            <input
-              type="text"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              placeholder="Receipt no., etc. (optional)"
-              className={inputCls}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className={labelCls}>Notes</label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-          />
-        </div>
-
-        <ErrorBanner message={error} />
-
-        <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="inline-flex items-center gap-2 rounded-xl bg-ink-950 px-4 py-2 text-sm font-semibold text-white hover:bg-ink-800 disabled:opacity-60 dark:bg-white dark:text-ink-950 dark:hover:bg-slate-200"
-          >
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpRight className="h-4 w-4" />}
-            Save expense
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function NewCategoryModal({ open, onClose, onSaved }) {
-  const [code, setCode] = useState('');
-  const [name, setName] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (open) {
-      setCode('');
-      setName('');
-      setError('');
-    }
-  }, [open]);
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError('');
-    try {
-      await api.post('/finance/accounts', {
-        code,
-        name,
-        accountType: 'expense',
-        accountSubtype: 'operating',
-      });
-      onSaved();
-      onClose();
-    } catch (err) {
-      setError(err.message || 'Failed to create category.');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const inputCls =
-    'h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white';
-  const labelCls = 'mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300';
-
-  return (
-    <Modal open={open} onClose={onClose} maxWidth="max-w-lg">
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">New expense category</h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            e.g. 5700 — Packaging Supplies
-          </p>
-        </div>
-        <button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10" aria-label="Close">
-          <X className="h-5 w-5" />
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div>
-            <label className={labelCls}>Code *</label>
-            <input
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="5700"
-              required
-              className={inputCls}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={labelCls}>Name *</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Packaging Supplies"
-              required
-              className={inputCls}
-            />
-          </div>
-        </div>
-
-        <ErrorBanner message={error} />
-
-        <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="inline-flex items-center gap-2 rounded-xl bg-ink-950 px-4 py-2 text-sm font-semibold text-white hover:bg-ink-800 disabled:opacity-60 dark:bg-white dark:text-ink-950 dark:hover:bg-slate-200"
-          >
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tag className="h-4 w-4" />}
-            Create
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function CancelExpenseModal({ expense, onClose, onSaved }) {
-  const [reason, setReason] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError('');
-    try {
-      await api.post(`/finance/expenses/${expense.id}/cancel`, reason ? { reason } : {});
-      onSaved();
-      onClose();
-    } catch (err) {
-      setError(err.message || 'Failed to cancel expense.');
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Modal open={Boolean(expense)} onClose={onClose} maxWidth="max-w-md">
-      <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Cancel expense #{expense?.expense_number}?</h2>
-      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-        This posts a reversal entry — the money returns to the account it was paid from. The record is kept.
-      </p>
-      <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Reason (optional)</label>
-          <input
-            type="text"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-          />
-        </div>
-        <ErrorBanner message={error} />
-        <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            Keep expense
-          </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
-          >
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Cancel expense
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function ExpensesTab() {
-  const [expenses, setExpenses] = useState([]);
-  const [accounts, setAccounts] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [showRecord, setShowRecord] = useState(false);
-  const [showCategory, setShowCategory] = useState(false);
-  const [cancelling, setCancelling] = useState(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const [expResult, acctResult] = await Promise.all([
-        api.get('/finance/expenses?limit=25&offset=0'),
-        api.get('/finance/accounts'),
-      ]);
-      setExpenses(expResult.expenses);
-      setTotal(expResult.total);
-      setAccounts(
-        acctResult.accounts.filter(
-          (a) => a.account_type === 'expense' && !a.system_code && a.is_active
-        )
-      );
-    } catch (err) {
-      setError(err.message || 'Failed to load expenses.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          onClick={() => setShowRecord(true)}
-          className="inline-flex h-9 items-center gap-2 rounded-xl bg-ink-950 px-3 text-sm font-semibold text-white hover:bg-ink-800 dark:bg-white dark:text-ink-950 dark:hover:bg-slate-200"
-        >
-          <Plus className="h-4 w-4" /> Record expense
-        </button>
-        <button
-          onClick={() => setShowCategory(true)}
-          className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-        >
-          <Tag className="h-4 w-4" /> New category
-        </button>
-        {total > expenses.length ? (
-          <p className="ml-auto text-sm text-slate-500 dark:text-slate-400">
-            Showing latest {expenses.length} of {total}
-          </p>
-        ) : null}
-      </div>
-
-      <ErrorBanner message={error} />
-
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
-            <thead className="bg-slate-50 dark:bg-slate-900">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 dark:text-slate-400">#</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 dark:text-slate-400">Date</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 dark:text-slate-400">Category</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 dark:text-slate-400">Paid by</th>
-                <th className="px-4 py-3 text-right font-medium text-slate-500 dark:text-slate-400">Amount</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 dark:text-slate-400">Status</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center">
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" />
-                  </td>
-                </tr>
-              ) : expenses.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
-                    No expenses recorded yet.
-                  </td>
-                </tr>
-              ) : (
-                expenses.map((e) => (
-                  <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/60">
-                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{e.expense_number}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{dateFmt(e.expense_date)}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{e.account_name}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{e.method.replace('_', ' ')}</td>
-                    <td className="px-4 py-3 text-right font-medium text-rose-600 dark:text-rose-400">
-                      {money(e.amount)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          e.status === 'posted'
-                            ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-400/10 dark:text-emerald-300'
-                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                        }`}
-                      >
-                        {e.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {e.status === 'posted' ? (
-                        <button
-                          onClick={() => setCancelling(e)}
-                          className="text-xs font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400"
-                        >
-                          Cancel
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <RecordExpenseModal
-        open={showRecord}
-        onClose={() => setShowRecord(false)}
-        onSaved={load}
-        accounts={accounts}
-      />
-      <NewCategoryModal open={showCategory} onClose={() => setShowCategory(false)} onSaved={load} />
-      <CancelExpenseModal
-        expense={cancelling}
-        onClose={() => setCancelling(null)}
-        onSaved={load}
       />
     </div>
   );
@@ -1328,6 +879,533 @@ function EquityTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Expenses tab
+// ---------------------------------------------------------------------------
+
+function RecordExpenseModal({ open, onClose, onSaved, accounts = [] }) {
+  const EMPTY_FORM = {
+    accountId: '',
+    amount: '',
+    method: 'cash',
+    reference: '',
+    expenseDate: '',
+    notes: '',
+  };
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setForm(EMPTY_FORM);
+      setError('');
+      setSubmitting(false);
+    }
+  }, [open]);
+
+  const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError('');
+    try {
+      const body = {
+        accountId: form.accountId,
+        amount: Number(form.amount),
+        method: form.method,
+      };
+      if (form.reference) body.reference = form.reference;
+      if (form.expenseDate) body.expenseDate = form.expenseDate;
+      if (form.notes) body.notes = form.notes;
+      await api.post('/finance/expenses', body);
+      await onSaved();
+      onClose();
+      setSubmitting(false);
+    } catch (err) {
+      setError(err.message || 'Failed to record expense.');
+      setSubmitting(false);
+    }
+  }
+
+  const inputCls =
+    'h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white';
+  const labelCls = 'mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300';
+
+  return (
+    <Modal open={open} onClose={onClose}>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Record expense</h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Money spent on day-to-day operations. Posts a journal entry immediately.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10"
+          aria-label="Close"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Category *</label>
+          <select
+            value={form.accountId}
+            onChange={(e) => update('accountId', e.target.value)}
+            required
+            className={inputCls}
+          >
+            <option value="">Select category…</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={labelCls}>Amount *</label>
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            required
+            value={form.amount}
+            onChange={(e) => update('amount', e.target.value)}
+            placeholder="0.00"
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Paid by *</label>
+          <select
+            value={form.method}
+            onChange={(e) => update('method', e.target.value)}
+            className={inputCls}
+          >
+            {EXPENSE_METHODS.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={labelCls}>Date</label>
+          <input
+            type="date"
+            value={form.expenseDate}
+            onChange={(e) => update('expenseDate', e.target.value)}
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Reference</label>
+          <input
+            type="text"
+            value={form.reference}
+            onChange={(e) => update('reference', e.target.value)}
+            className={inputCls}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Notes</label>
+          <input
+            type="text"
+            value={form.notes}
+            onChange={(e) => update('notes', e.target.value)}
+            className={inputCls}
+          />
+        </div>
+
+        {error ? (
+          <p className="sm:col-span-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-400/10 dark:text-rose-300">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="flex justify-end gap-2 sm:col-span-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="inline-flex items-center gap-2 rounded-xl bg-ink-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-ink-800 disabled:opacity-60 dark:bg-white dark:text-ink-950 dark:hover:bg-slate-200"
+          >
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Record expense
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+const EXPENSE_METHODS = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'card', label: 'Card' },
+  { value: 'bank_transfer', label: 'Bank transfer' },
+  { value: 'other', label: 'Other' },
+];
+
+function NewCategoryModal({ open, onClose, onSaved }) {
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setCode('');
+      setName('');
+      setDescription('');
+      setError('');
+      setSubmitting(false);
+    }
+  }, [open]);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError('');
+    try {
+      const body = { code, name, accountType: 'expense' };
+      if (description) body.description = description;
+      await api.post('/finance/accounts', body);
+      await onSaved();
+      onClose();
+      setSubmitting(false);
+    } catch (err) {
+      setError(err.message || 'Failed to create category.');
+      setSubmitting(false);
+    }
+  }
+
+  const inputCls =
+    'h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white';
+  const labelCls = 'mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300';
+
+  return (
+    <Modal open={open} onClose={onClose} maxWidth="max-w-lg">
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+            New expense category
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Creates an expense account you can pick when recording spend.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10"
+          aria-label="Close"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="grid gap-4">
+        <div>
+          <label className={labelCls}>Code *</label>
+          <input
+            type="text"
+            required
+            maxLength={20}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="e.g. 6100"
+            className={inputCls}
+          />
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            1–20 characters: letters, numbers, hyphens, dots.
+          </p>
+        </div>
+        <div>
+          <label className={labelCls}>Name *</label>
+          <input
+            type="text"
+            required
+            minLength={2}
+            maxLength={160}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Office supplies"
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Description</label>
+          <input
+            type="text"
+            maxLength={1000}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className={inputCls}
+          />
+        </div>
+
+        {error ? (
+          <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-400/10 dark:text-rose-300">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="inline-flex items-center gap-2 rounded-xl bg-ink-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-ink-800 disabled:opacity-60 dark:bg-white dark:text-ink-950 dark:hover:bg-slate-200"
+          >
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Create category
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function CancelExpenseModal({ expense, onClose, onSaved }) {
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setReason('');
+    setError('');
+    setSubmitting(false);
+  }, [expense]);
+
+  async function handleCancel() {
+    setSubmitting(true);
+    setError('');
+    try {
+      await api.post(`/finance/expenses/${expense.id}/cancel`, reason ? { reason } : {});
+      await onSaved();
+      onClose();
+      setSubmitting(false);
+    } catch (err) {
+      setError(err.message || 'Failed to cancel expense.');
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal open={Boolean(expense)} onClose={onClose} maxWidth="max-w-lg">
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+            Cancel expense #{expense?.expense_number ?? '…'}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            {expense?.account_name ? `${expense.account_name} · ` : ''}
+            {money(expense?.amount)} — posts a reversing journal entry and keeps the audit trail
+            intact.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10"
+          aria-label="Close"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div className="grid gap-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+            Reason
+          </label>
+          <textarea
+            rows={3}
+            maxLength={500}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Why is this expense being cancelled? (optional)"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-brand-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+          />
+        </div>
+
+        {error ? (
+          <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-400/10 dark:text-rose-300">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Keep it
+          </button>
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={submitting}
+            className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60"
+          >
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+            Cancel expense
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ExpensesTab() {
+  const [expenses, setExpenses] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showRecord, setShowRecord] = useState(false);
+  const [showCategory, setShowCategory] = useState(false);
+  const [cancelling, setCancelling] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [expenseResult, accountResult] = await Promise.all([
+        api.get('/finance/expenses?limit=50&offset=0'),
+        api.get('/finance/accounts'),
+      ]);
+      setExpenses(expenseResult.expenses || []);
+      setAccounts((accountResult.accounts || []).filter((a) => a.account_type === 'expense'));
+    } catch (err) {
+      setError(err.message || 'Failed to load expenses.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {expenses.length} recorded {expenses.length === 1 ? 'expense' : 'expenses'}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowCategory(true)}
+            className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600"
+          >
+            <Tag className="h-4 w-4" />
+            New category
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowRecord(true)}
+            className="inline-flex h-9 items-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-3 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:-translate-y-px dark:from-brand-600 dark:to-brand-700"
+          >
+            <Plus className="h-4 w-4" />
+            Record expense
+          </button>
+        </div>
+      </div>
+
+      <ErrorBanner message={error} />
+
+      <DataTable
+        columns={[
+          { key: 'expense_number', label: '#', sortable: true },
+          {
+            key: 'expense_date',
+            label: 'Date',
+            sortable: true,
+            render: (e) => dateOnly(e.expense_date),
+          },
+          { key: 'account_name', label: 'Category', sortable: true },
+          { key: 'method', label: 'Paid by', render: (e) => e.method.replace('_', ' ') },
+          {
+            key: 'amount',
+            label: 'Amount',
+            align: 'right',
+            className: 'tabular-nums',
+            sortable: true,
+            render: (e) => (
+              <span className="font-medium text-rose-600 dark:text-rose-400">{money(e.amount)}</span>
+            ),
+          },
+          {
+            key: 'status',
+            label: 'Status',
+            render: (e) => (
+              <Badge tone={e.status === 'posted' ? 'emerald' : 'slate'}>{e.status}</Badge>
+            ),
+          },
+          {
+            key: 'actions',
+            label: '',
+            headerClassName: 'text-right',
+            render: (e) =>
+              e.status === 'posted' ? (
+                <button
+                  type="button"
+                  onClick={() => setCancelling(e)}
+                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400"
+                >
+                  Cancel
+                </button>
+              ) : null,
+          },
+        ]}
+        rows={loading ? [] : expenses}
+        loading={loading}
+        empty="No expenses recorded yet."
+        pageSize={10}
+      />
+
+      <RecordExpenseModal
+        open={showRecord}
+        onClose={() => setShowRecord(false)}
+        onSaved={load}
+        accounts={accounts}
+      />
+      <NewCategoryModal
+        open={showCategory}
+        onClose={() => setShowCategory(false)}
+        onSaved={load}
+      />
+      <CancelExpenseModal
+        expense={cancelling}
+        onClose={() => setCancelling(null)}
+        onSaved={load}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -1437,6 +1515,7 @@ export default function FinancePage() {
   return (
     <div className="animate-fade-up">
       <PageHeader
+        icon={Wallet}
         title="Finance"
         description="Accounts, journal entries, expenses, and owner equity — the money side of your business."
         actions={<ExportDropdown />}

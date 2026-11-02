@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { api, setAccessToken } from '../lib/api';
+import { api, setAccessToken, setRefreshToken, clearAuthStorage } from '../lib/api';
 
 const AuthContext = createContext(null);
 
@@ -19,7 +19,7 @@ export function AuthProvider({ children }) {
         const data = await api.get('/auth/me');
         setUser(data.user);
       } catch {
-        setAccessToken(null);
+        clearAuthStorage();
         setToken(null);
         setUser(null);
       } finally {
@@ -30,14 +30,19 @@ export function AuthProvider({ children }) {
     loadUser();
   }, [token]);
 
-  function login(newToken, newUser) {
+  function login(newToken, newUser, refreshToken = null) {
     setAccessToken(newToken);
+    setRefreshToken(refreshToken);
     setToken(newToken);
     setUser(newUser);
   }
 
-  function logout() {
-    setAccessToken(null);
+  async function logout() {
+    const refreshToken = localStorage.getItem('refresh_token');
+    await api
+      .post('/auth/logout', { refreshToken, all: true })
+      .catch(() => {});
+    clearAuthStorage();
     setToken(null);
     setUser(null);
   }

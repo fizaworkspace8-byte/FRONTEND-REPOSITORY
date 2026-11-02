@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Building, Loader2, Plus, RefreshCw } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import DataTable from '../components/DataTable';
+import Badge from '../components/Badge';
 import { api } from '../lib/api';
 
 function CreateTenantForm({ onCreated }) {
@@ -188,7 +190,7 @@ function CreateTenantForm({ onCreated }) {
           <button
             type="submit"
             disabled={submitting}
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-ink-950 px-4 text-sm font-semibold text-white transition hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-ink-950 dark:hover:bg-slate-200"
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-60 dark:from-brand-600 dark:to-brand-700"
           >
             {submitting ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -228,6 +230,7 @@ export default function PlatformDashboard() {
   return (
     <div className="animate-fade-up">
       <PageHeader
+        icon={Building}
         title="Tenants"
         description="Create and monitor tenant businesses. Each tenant is isolated from every other."
         actions={

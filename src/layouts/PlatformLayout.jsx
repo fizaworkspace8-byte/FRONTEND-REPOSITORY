@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Boxes, LogOut, Menu, Moon, Sun } from 'lucide-react';
 import Logo from '../components/Logo';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme } from '../theme/ThemeProvider';
 
@@ -9,6 +10,7 @@ export default function PlatformLayout() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
 
   function handleLogout() {
@@ -106,7 +108,9 @@ export default function PlatformLayout() {
         </header>
 
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <Outlet />
+          <ErrorBoundary key={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

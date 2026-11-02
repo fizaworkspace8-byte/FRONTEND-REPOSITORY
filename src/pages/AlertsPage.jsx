@@ -1,29 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  Check,
+import { Check,
   Loader2,
   RefreshCw,
   Sparkles,
-  X,
-} from 'lucide-react';
+  X, BellRing } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import DataTable from '../components/DataTable';
+import Badge from '../components/Badge';
 import { api } from '../lib/api';
 import { useAuth } from '../auth/AuthContext';
-
-const dateTime = (v) =>
-  new Date(v).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-const money = (v) =>
-  new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(v || 0));
+import { money, dateTime } from '../lib/format';
 
 function Modal({ open, onClose, children, maxWidth = 'max-w-lg' }) {
   if (!open) return null;
@@ -237,6 +224,7 @@ export default function AlertsPage() {
   return (
     <div className="animate-fade-up">
       <PageHeader
+        icon={BellRing}
         title="Alerts"
         description="Low-stock and out-of-stock alerts, automatic reorder drafts, and background job history."
         actions={
@@ -246,7 +234,7 @@ export default function AlertsPage() {
                 type="button"
                 onClick={runScan}
                 disabled={Boolean(busy)}
-                className="inline-flex h-9 items-center gap-2 rounded-xl bg-ink-950 px-3 text-sm font-semibold text-white transition hover:bg-ink-800 disabled:opacity-60 dark:bg-white dark:text-ink-950 dark:hover:bg-slate-200"
+                className="inline-flex h-9 items-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-3 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:-translate-y-px disabled:opacity-60 dark:from-brand-600 dark:to-brand-700"
               >
                 {busy === 'scan' ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

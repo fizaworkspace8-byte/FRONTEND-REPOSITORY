@@ -18,6 +18,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import DataTable from '../components/DataTable';
 import { api, API_BASE_URL } from '../lib/api';
 import { useAuth } from '../auth/AuthContext';
 
@@ -163,7 +164,6 @@ function useReport(path, params) {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, paramKey]);
 
   return state;
@@ -260,52 +260,6 @@ function StatTile({ label, value, tone }) {
   );
 }
 
-const cellCls = (align) =>
-  `px-3 py-2.5 whitespace-nowrap ${align === 'right' ? 'text-right' : 'text-left'}`;
-
-function DataTable({ columns, rows, empty }) {
-  if (!rows || rows.length === 0) {
-    return (
-      <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-        {empty || 'No data for this period.'}
-      </p>
-    );
-  }
-  return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200/60 dark:border-slate-800/60">
-      <table className="min-w-full divide-y divide-slate-200/80 text-sm dark:divide-slate-800/80">
-        <thead className="bg-slate-100/60 dark:bg-slate-800/60">
-          <tr>
-            {columns.map((c) => (
-              <th
-                key={c.key}
-                className={`px-3 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 ${
-                  c.align === 'right' ? 'text-right' : 'text-left'
-                }`}
-              >
-                {c.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-          {rows.map((row, i) => (
-            <tr key={row.id || row.variant_id || i} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-              {columns.map((c) => (
-                <td
-                  key={c.key}
-                  className={`${cellCls(c.align)} font-medium text-slate-800 dark:text-slate-200`}
-                >
-                  {c.render ? c.render(row) : row[c.key] != null ? row[c.key] : '—'}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 function ChartBox({ isEmpty, children }) {
   if (isEmpty) {
@@ -385,6 +339,7 @@ function SalesTab({ dateFrom, dateTo }) {
   const summary = useReport('/reports/sales-summary', range);
   const byProduct = useReport('/reports/sales-by-product', { ...range, limit: 100 });
   const byCategory = useReport('/reports/sales-by-category', range);
+  const byBrand = useReport('/reports/sales-by-brand', range);
   const byHour = useReport('/reports/sales-by-hour', range);
   const byWeekday = useReport('/reports/sales-by-weekday', range);
   const recent = useReport('/reports/recently-sold', { limit: 15 });
@@ -555,6 +510,23 @@ function SalesTab({ dateFrom, dateTo }) {
         error={byCategory.error}
       >
         <DataTable columns={categoryCols} rows={(byCategory.data && byCategory.data.categories) || []} />
+      </ReportCard>
+
+      <ReportCard
+        title="Sales by brand"
+        csv={{ path: '/reports/sales-by-brand', params: range, filename: 'sales-by-brand' }}
+        loading={byBrand.loading}
+        error={byBrand.error}
+      >
+        <DataTable
+          columns={[
+            { key: 'brand_name', label: 'Brand' },
+            { key: 'revenue', label: 'Revenue', align: 'right', render: (r) => money(r.revenue || 0) },
+            { key: 'units_sold', label: 'Units Sold', align: 'right', render: (r) => qty(r.units_sold || 0) },
+          ]}
+          rows={(byBrand.data && byBrand.data.brands) || []}
+          empty="No brand sales recorded yet."
+        />
       </ReportCard>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -1288,6 +1260,7 @@ export default function ReportsPage() {
     return (
       <div className="animate-fade-up">
         <PageHeader
+        icon={TrendingUp}
           title="Reports"
           description="Sales, inventory, purchasing and financial reporting."
         />

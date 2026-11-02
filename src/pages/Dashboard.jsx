@@ -17,24 +17,21 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import DataTable from '../components/DataTable';
+import { ColorSwatch } from '../components/ColorSwatch';
+import Badge from '../components/Badge';
+import EmptyState from '../components/EmptyState';
 import { api } from '../lib/api';
-
-const money = (v) =>
-  new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(Number(v || 0));
-
-const dateTime = (v) => {
-  if (!v) return 'N/A';
-  return new Date(v).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
+import { money, dateTime } from '../lib/format';
+import {
+  ResponsiveContainer,
+  BarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Bar,
+} from 'recharts';
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -50,18 +47,48 @@ export default function Dashboard() {
     openAlerts: 0,
     cashOnHand: 0,
   });
+  const [salesByBrandData, setSalesByBrandData] = useState([]);
+  const [salesByBrandLoading, setSalesByBrandLoading] = useState(false);
+  const [salesByBrandError, setSalesByBrandError] = useState(null);
 
   const loadDashboardData = useCallback(async () => {
     setLoading(true);
     setError('');
 
-    const [salesResult, inventoryResult, alertsResult, financeResult] =
+    const [salesResult, inventoryResult, alertsResult, financeResult, brandResult] =
       await Promise.allSettled([
         api.get('/sales?limit=10'),
-        api.get('/inventory/summary').catch(() => api.get('/products')),
+        api.get('/inventory/summary').catch(() => api.get('/products?limit=500')),
         api.get('/alerts/open-count'),
         api.get('/finance/summary').catch(() => null),
+        api.get('/reports/sales-by-brand').catch(() => null),
       ]);
+
+    // Process Sales by Brand
+    try {
+      setSalesByBrandLoading(true);
+      if (brandResult.status === 'fulfilled' && brandResult.value) {
+        const brandData = brandResult.value;
+        // Handle different response shapes
+        const rows = brandData.brands || brandData.data || brandData.rows || [];
+        const mapped = rows.map((r) => ({
+          brand: r.brand_name || r.name || 'Unknown',
+          revenue: Number(r.revenue || r.total_sales || r.total || 0),
+        }));
+        // Sort desc, top 8 + Others
+        mapped.sort((a, b) => b.revenue - a.revenue);
+        const top8 = mapped.slice(0, 8);
+        const othersRevenue = mapped.slice(8).reduce((sum, r) => sum + r.revenue, 0);
+        const final = othersRevenue > 0 ? [...top8, { brand: 'Others', revenue: othersRevenue }] : top8;
+        setSalesByBrandData(final);
+      } else {
+        setSalesByBrandData([]);
+      }
+    } catch {
+      setSalesByBrandData([]);
+    } finally {
+      setSalesByBrandLoading(false);
+    }
 
     let totalRev = 0;
     let sCount = 0;
@@ -127,6 +154,7 @@ export default function Dashboard() {
   return (
     <div className="animate-fade-up space-y-6">
       <PageHeader
+        icon={TrendingUp}
         title="Store Dashboard"
         description="Real-time operational overview, key inventory performance metrics, and rapid transaction shortcuts."
         actions={
@@ -160,12 +188,12 @@ export default function Dashboard() {
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Total Revenue
               </p>
-              <h3 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+              <h3 className="mt-2 text-2xl font-bold tabular-nums text-slate-900 dark:text-white">
                 {loading ? <Loader2 className="h-6 w-6 animate-spin text-emerald-500" /> : money(metrics.totalRevenue)}
               </h3>
             </div>
-            <div className="rounded-xl bg-emerald-500/10 p-3 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 shrink-0">
-              <TrendingUp className="h-6 w-6" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
+              <TrendingUp className="h-5 w-5" />
             </div>
           </div>
           <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs dark:border-slate-800">
@@ -182,18 +210,18 @@ export default function Dashboard() {
         </div>
 
         {/* KPI 2: Low Stock Items */}
-        <div className="card hover-accent-amber p-5 flex flex-col justify-between">
+        <div className="card hover-accent-sky p-5 flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Low Stock Items
               </p>
-              <h3 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
-                {loading ? <Loader2 className="h-6 w-6 animate-spin text-amber-500" /> : metrics.lowStockCount}
+              <h3 className="mt-2 text-2xl font-bold tabular-nums text-slate-900 dark:text-white">
+                {loading ? <Loader2 className="h-6 w-6 animate-spin text-sky-500" /> : metrics.lowStockCount}
               </h3>
             </div>
-            <div className="rounded-xl bg-amber-500/10 p-3 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 shrink-0">
-              <AlertTriangle className="h-6 w-6" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 dark:bg-sky-500/20 dark:text-sky-400">
+              <AlertTriangle className="h-5 w-5" />
             </div>
           </div>
           <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs dark:border-slate-800">
@@ -202,7 +230,7 @@ export default function Dashboard() {
             </span>
             <Link
               to="/products"
-              className="font-medium text-amber-600 hover:text-amber-700 dark:text-amber-400 flex items-center gap-1"
+              className="font-medium text-sky-600 hover:text-sky-700 dark:text-sky-400 flex items-center gap-1"
             >
               Catalog <ArrowRight className="h-3 w-3" />
             </Link>
@@ -210,18 +238,18 @@ export default function Dashboard() {
         </div>
 
         {/* KPI 3: Active System Alerts */}
-        <div className="card hover-accent-red p-5 flex flex-col justify-between">
+        <div className="card hover-accent-amber p-5 flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Active Alerts
               </p>
-              <h3 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
-                {loading ? <Loader2 className="h-6 w-6 animate-spin text-red-500" /> : metrics.openAlerts}
+              <h3 className="mt-2 text-2xl font-bold tabular-nums text-slate-900 dark:text-white">
+                {loading ? <Loader2 className="h-6 w-6 animate-spin text-amber-500" /> : metrics.openAlerts}
               </h3>
             </div>
-            <div className="rounded-xl bg-red-500/10 p-3 text-red-600 dark:bg-red-500/20 dark:text-red-400 shrink-0">
-              <BellRing className="h-6 w-6" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
+              <BellRing className="h-5 w-5" />
             </div>
           </div>
           <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs dark:border-slate-800">
@@ -230,7 +258,7 @@ export default function Dashboard() {
             </span>
             <Link
               to="/alerts"
-              className="font-medium text-red-600 hover:text-red-700 dark:text-red-400 flex items-center gap-1"
+              className="font-medium text-amber-600 hover:text-amber-700 dark:text-amber-400 flex items-center gap-1"
             >
               Alerts <ArrowRight className="h-3 w-3" />
             </Link>
@@ -238,25 +266,25 @@ export default function Dashboard() {
         </div>
 
         {/* KPI 4: Total Inventory Items / Variants */}
-        <div className="card hover-accent-blue p-5 flex flex-col justify-between">
+        <div className="card hover-accent-violet p-5 flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Total Stock Variants
               </p>
-              <h3 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
-                {loading ? <Loader2 className="h-6 w-6 animate-spin text-blue-500" /> : metrics.totalVariants}
+              <h3 className="mt-2 text-2xl font-bold tabular-nums text-slate-900 dark:text-white">
+                {loading ? <Loader2 className="h-6 w-6 animate-spin text-violet-500" /> : metrics.totalVariants}
               </h3>
             </div>
-            <div className="rounded-xl bg-blue-500/10 p-3 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 shrink-0">
-              <Boxes className="h-6 w-6" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:bg-violet-500/20 dark:text-violet-400">
+              <Boxes className="h-5 w-5" />
             </div>
           </div>
           <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs dark:border-slate-800">
             <span className="text-slate-500 dark:text-slate-400">Active SKUs</span>
             <Link
               to="/products"
-              className="font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1"
+              className="font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 flex items-center gap-1"
             >
               Products <ArrowRight className="h-3 w-3" />
             </Link>
@@ -345,91 +373,120 @@ export default function Dashboard() {
       </div>
 
       {/* Recent Sales Activity Preview Table */}
-      <div className="card overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-              Recent Sales Activity
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Latest transactions recorded at the point of sale.
-            </p>
-          </div>
-          <Link
-            to="/sales"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400"
-          >
-            <span>View All Sales</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        </div>
+      <DataTable
+        columns={[
+          {
+            key: 'invoice_number',
+            label: 'Invoice / Sale ID',
+            sortable: true,
+            render: (sale) => (
+              <span className="font-mono font-medium text-slate-900 dark:text-white">
+                {sale.invoice_number || sale.id?.slice(0, 8)}
+              </span>
+            ),
+          },
+          {
+            key: 'customer_name',
+            label: 'Customer',
+            render: (sale) => (
+              <span className="text-slate-700 dark:text-slate-300">
+                {sale.customer_name || sale.customer?.name || 'Walk-in Customer'}
+              </span>
+            ),
+          },
+          {
+            key: 'created_at',
+            label: 'Date & Time',
+            sortable: true,
+            render: (sale) => (
+              <span className="text-slate-500 dark:text-slate-400">
+                {dateTime(sale.created_at || sale.sale_date)}
+              </span>
+            ),
+          },
+          {
+            key: 'payment_method',
+            label: 'Method',
+            render: (sale) => (
+              <span className="capitalize text-slate-600 dark:text-slate-300">
+                {sale.payment_method || 'Cash'}
+              </span>
+            ),
+          },
+          {
+            key: 'total_amount',
+            label: 'Total',
+            align: 'right',
+            className: 'tabular-nums',
+            sortable: true,
+            render: (sale) => (
+              <span className="font-semibold text-slate-900 dark:text-white">
+                {money(sale.total_amount || sale.total)}
+              </span>
+            ),
+          },
+          {
+            key: 'status',
+            label: 'Status',
+            render: (sale) => (
+              <Badge
+                tone={
+                  sale.status === 'completed' || !sale.status
+                    ? 'emerald'
+                    : sale.status === 'pending'
+                    ? 'amber'
+                    : 'rose'
+                }
+              >
+                {sale.status || 'Completed'}
+              </Badge>
+            ),
+          },
+        ]}
+        rows={loading ? [] : metrics.recentSales}
+        loading={loading}
+        empty="No sales recorded yet. Start a sale from the POS module."
+        sort={{ key: 'created_at', dir: 'desc' }}
+        onSortChange={() => {}}
+      />
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm divide-y divide-slate-100 dark:divide-slate-800">
-            <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              <tr>
-                <th className="px-6 py-3.5">Invoice / Sale ID</th>
-                <th className="px-6 py-3.5">Customer</th>
-                <th className="px-6 py-3.5">Date & Time</th>
-                <th className="px-6 py-3.5">Method</th>
-                <th className="px-6 py-3.5 text-right">Total</th>
-                <th className="px-6 py-3.5 text-center">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center">
-                    <Loader2 className="mx-auto h-6 w-6 animate-spin text-brand-500" />
-                    <span className="mt-2 block text-xs text-slate-400">Loading recent sales...</span>
-                  </td>
-                </tr>
-              ) : metrics.recentSales.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
-                    <ShoppingCart className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-600 mb-2" />
-                    No sales recorded yet. Start a sale from the POS module.
-                  </td>
-                </tr>
-              ) : (
-                metrics.recentSales.map((sale) => (
-                  <tr
-                    key={sale.id}
-                    className="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
-                  >
-                    <td className="px-6 py-4 font-mono font-medium text-slate-900 dark:text-white">
-                      {sale.invoice_number || sale.id?.slice(0, 8)}
-                    </td>
-                    <td className="px-6 py-4 text-slate-700 dark:text-slate-300">
-                      {sale.customer_name || sale.customer?.name || 'Walk-in Customer'}
-                    </td>
-                    <td className="px-6 py-4 text-slate-500 dark:text-slate-400">
-                      {dateTime(sale.created_at || sale.sale_date)}
-                    </td>
-                    <td className="px-6 py-4 capitalize text-slate-600 dark:text-slate-300">
-                      {sale.payment_method || 'Cash'}
-                    </td>
-                    <td className="px-6 py-4 text-right font-semibold text-slate-900 dark:text-white">
-                      {money(sale.total_amount || sale.total)}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                          sale.status === 'completed' || !sale.status
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
-                            : sale.status === 'pending'
-                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
-                            : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
-                        }`}
-                      >
-                        {sale.status || 'Completed'}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* Sales by Brand */}
+      <div className="card overflow-hidden">
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+            Sales by Brand
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Top brands by revenue.
+          </p>
+        </div>
+        <div className="p-6">
+          {salesByBrandLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
+            </div>
+          ) : salesByBrandError ? (
+            <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+              Unable to load brand sales.
+            </p>
+          ) : salesByBrandData.length === 0 ? (
+            <EmptyState
+              title="No sales yet"
+              description="Start recording sales to see brand performance."
+            />
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={salesByBrandData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="brand" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="revenue" fill="#2563EB" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       </div>
     </div>
